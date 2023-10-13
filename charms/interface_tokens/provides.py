@@ -33,7 +33,7 @@ class TokensProvider:
         tokens = {
             k: v
             for relation in self.relations
-            for k, v in json.loads(relation.data[self.unit].get("tokens", "{}"))
+            for k, v in json.loads(relation.data[self.unit].get("tokens", "{}")).items()
         }
 
         tokens[request.user] = token
