@@ -28,7 +28,7 @@ class TokensRequirer(Object):
 
     @property
     def relation(self) -> Optional[Relation]:
-        """Retrieve the realtion for the given endpoint."""
+        """Retrieve the relation for the given endpoint."""
         return self.model.get_relation(self.endpoint)
 
     @property
