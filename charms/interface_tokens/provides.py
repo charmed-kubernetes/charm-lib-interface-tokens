@@ -15,6 +15,7 @@ class TokenRequest:
         group (str): The group associated with the user.
     """
 
+    relation_id: int
     unit: str
     user: str
     group: str
@@ -49,7 +50,9 @@ class TokensProvider:
         if not self.relations:
             return []
         return [
-            TokenRequest(unit=unit.name, user=user, group=group)
+            TokenRequest(
+                relation_id=relation.id, unit=unit.name, user=user, group=group
+            )
             for relation in self.relations
             for unit in relation.units
             if (user := relation.data[unit].get("user"))
