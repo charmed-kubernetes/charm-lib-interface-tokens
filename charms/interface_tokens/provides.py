@@ -35,6 +35,7 @@ class TokensProvider:
             k: v
             for relation in self.relations
             for k, v in json.loads(relation.data[self.unit].get("tokens", "{}")).items()
+            if relation.id == request.relation_id
         }
 
         tokens[request.user] = token
@@ -42,7 +43,8 @@ class TokensProvider:
 
         # Update all relations with the new token data.
         for relation in self.relations:
-            relation.data[self.unit]["tokens"] = value
+            if relation.id == request.relation_id:
+                relation.data[self.unit]["tokens"] = value
 
     @property
     def token_requests(self) -> List[TokenRequest]:
