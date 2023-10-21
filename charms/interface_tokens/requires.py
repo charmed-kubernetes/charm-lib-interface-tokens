@@ -1,17 +1,15 @@
+import json
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from ops import CharmBase, Relation, RelationBrokenEvent
 from ops.framework import Object
-from pydantic import BaseModel, Json, ValidationError
+from ops.model import Unit
+from pydantic import ValidationError
 
-log = logging.getLogger("ClusterAuthTokenRequirer")
+from .model import ProvidesModel, RequiresModel
 
-
-class Data(BaseModel):
-    """Represents the data structure for tokens."""
-
-    tokens: Json[Dict[str, str]]
+log = logging.getLogger("TokensRequirer")
 
 
 class TokensRequirer(Object):
@@ -23,38 +21,18 @@ class TokensRequirer(Object):
 
     def request_token(self, user: str, group: str):
         """Request a token for the given user and group."""
+        log.info(f"Requesting Token for {user} using group: {group}")
         if self.relation:
-            self.relation.data[self.model.unit].update({"user": user, "group": group})
-
-    @property
-    def relation(self) -> Optional[Relation]:
-        """Retrieve the relation for the given endpoint."""
-        return self.model.get_relation(self.endpoint)
-
-    @property
-    def _data(self) -> Optional[Data]:
-        """Aggregate data from all units in the relation."""
-        if not self.relation or not self.relation.units:
-            return None
-
-        data = {
-            k: v
-            for unit in self.relation.units
-            for k, v in self.relation.data[unit].items()
-        }
-        try:
-            return Data(**data)
-        except ValidationError:
-            return None
-
-    @property
-    def is_ready(self):
-        """Check if the relation data is ready and valid."""
-        data = self._data
-        if data is None:
-            log.exception(f"{self.endpoint} relation data not yet available.")
-            return False
-        return True
+            try:
+                data = RequiresModel(
+                    requests=self.relation.data[self.unit].get("requests", "{}")
+                )
+            except ValidationError:
+                log.exception("Error validating relation data.")
+            data.requests[user] = group
+            self.relation.data[self.unit].update(
+                {"requests": json.dumps(data.requests)}
+            )
 
     def evaluate_relation(self, event) -> Optional[str]:
         """Evaluate the state of the relation."""
@@ -69,7 +47,40 @@ class TokensRequirer(Object):
 
     def get_token(self, user) -> Optional[str]:
         """Return the token for the given user."""
-        if not self.is_ready:
+        return self._data.tokens.get(user) if self.is_ready else None
+
+    @property
+    def _data(self) -> Optional[ProvidesModel]:
+        """Aggregate data from all units in the relation."""
+        if not self.relation or not self.relation.units:
             return None
 
-        return self._data.tokens.get(user)
+        data = {
+            k: v
+            for unit in self.relation.units
+            for k, v in self.relation.data[unit].items()
+        }
+        log.info(f"Data in the relation: {data}")
+        try:
+            return ProvidesModel(**data)
+        except ValidationError:
+            log.exception("Token Data not yet available.")
+            return None
+
+    @property
+    def is_ready(self):
+        """Check if the relation data is ready and valid."""
+        data = self._data
+        if data is None:
+            log.exception(f"{self.endpoint} relation data not yet available.")
+            return False
+        return True
+
+    @property
+    def relation(self) -> Optional[Relation]:
+        """Retrieve the relation for the given endpoint."""
+        return self.model.get_relation(self.endpoint)
+
+    @property
+    def unit(self) -> Unit:
+        return self.model.unit

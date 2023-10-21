@@ -1,24 +1,28 @@
 import json
+import logging
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from ops import CharmBase, Relation, Unit
 
+from .model import RequiresModel
+
+log = logging.getLogger("TokensProvider")
+
 
 @dataclass
-class TokenRequest:
+class Request:
     """Represents a request for an authentication token.
 
     Attributes:
         unit (str): The name of the unit making the request.
-        user (str): The user associated with the token request.
-        group (str): The group associated with the user.
+        relation_id (int): The ID of the relation associated with the request.
+        request (Dict[str,str]): Mapping of the token requests consisting of user:group.
     """
 
-    relation_id: int
     unit: str
-    user: str
-    group: str
+    relation_id: int
+    requests: Dict[str, str]
 
 
 class TokensProvider:
@@ -28,38 +32,32 @@ class TokensProvider:
         self.charm = charm
         self.endpoint = endpoint
 
-    def send_token(self, request: TokenRequest, token: str) -> None:
+    def send_token(self, request: Request, tokens: Dict[str, str]) -> None:
         """Send the token to the related units."""
-        # Aggregate tokens from all relations.
-        tokens = {
-            k: v
-            for relation in self.relations
-            for k, v in json.loads(relation.data[self.unit].get("tokens", "{}")).items()
-            if relation.id == request.relation_id
-        }
-
-        tokens[request.user] = token
-        value = json.dumps(tokens)
-
-        # Update all relations with the new token data.
         for relation in self.relations:
             if relation.id == request.relation_id:
-                relation.data[self.unit]["tokens"] = value
+                existing_tokens = json.loads(
+                    relation.data[self.unit].get("tokens", "{}")
+                )
+                existing_tokens.update(tokens)
+                relation.data[self.unit]["tokens"] = json.dumps(existing_tokens)
 
     @property
-    def token_requests(self) -> List[TokenRequest]:
+    def token_requests(self) -> List[Request]:
         """List of token requests based on relations."""
-        if not self.relations:
-            return []
-        return [
-            TokenRequest(
-                relation_id=relation.id, unit=unit.name, user=user, group=group
-            )
-            for relation in self.relations
-            for unit in relation.units
-            if (user := relation.data[unit].get("user"))
-            and (group := relation.data[unit].get("group"))
-        ]
+        requests = []
+        for relation in self.relations or []:
+            for unit in relation.units:
+                data = relation.data[unit].get("requests", "{}")
+                parsed_data = RequiresModel(requests=data)
+                requests.append(
+                    Request(
+                        unit=unit.name,
+                        relation_id=relation.id,
+                        requests=parsed_data.requests,
+                    )
+                )
+        return requests
 
     @property
     def relations(self) -> Optional[List[Relation]]:
