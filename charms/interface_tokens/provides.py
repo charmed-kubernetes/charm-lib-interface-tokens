@@ -62,7 +62,7 @@ class TokensProvider:
                 for token in tokens_to_remove:
                     exisiting_tokens.pop(token, None)
 
-                relation.data[self.unit]["tokens"] = json.dumps(data)
+                relation.data[self.unit]["tokens"] = json.dumps(exisiting_tokens)
             except ValidationError:
                 log.exception(f"Failed to validate data from relation {relation.id}")
 

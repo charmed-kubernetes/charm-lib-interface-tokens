@@ -43,8 +43,9 @@ class TokensRequirer(Object):
             if no_relation:
                 return f"Missing required {self.endpoint} relation"
             return f"Waiting for {self.endpoint} relation"
-        if self.in_flight_requests:
-            which_users = ",".join(sorted(self.in_flight_requests))
+        requests = self.in_flight_requests()
+        if requests:
+            which_users = ",".join(sorted(requests))
             return f"Token request for users {which_users} is not yet fulfilled."
         return None
 
