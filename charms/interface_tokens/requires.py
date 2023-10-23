@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional
+from typing import Optional, Set
 
 from ops import CharmBase, Relation, RelationBrokenEvent
 from ops.framework import Object
@@ -52,7 +52,9 @@ class TokensRequirer(Object):
         """Provides a set of requests which don't yet have a response."""
         if not self.is_ready:
             return set()
-        reqs = RequiresModel(requests=self.relation.data[self.unit].get("requests", "{}"))
+        reqs = RequiresModel(
+            requests=self.relation.data[self.unit].get("requests", "{}")
+        )
         return {user for user in reqs.requests.keys() if not self.get_token(user)}
 
     def get_token(self, user) -> Optional[str]:
