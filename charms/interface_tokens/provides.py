@@ -1,11 +1,12 @@
 import json
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from ops import CharmBase, Relation, Unit
+from pydantic import ValidationError
 
-from .model import RequiresModel
+from .model import ProvidesModel, RequiresModel
 
 log = logging.getLogger("TokensProvider")
 
@@ -42,11 +43,34 @@ class TokensProvider:
                 existing_tokens.update(tokens)
                 relation.data[self.unit]["tokens"] = json.dumps(existing_tokens)
 
+    def remove_stale_tokens(self) -> None:
+        """Remove tokens that are no longer in the requests."""
+
+        current_requests = {
+            req.relation_id: req.requests for req in self.token_requests
+        }
+
+        for relation in self.relations:
+            try:
+                data = ProvidesModel(
+                    tokens=relation.data[self.unit].get("tokens", "{}")
+                )
+                exisiting_tokens = data.tokens
+                required_tokens = current_requests.get(relation.id, {})
+
+                tokens_to_remove = set(exisiting_tokens) - set(required_tokens)
+                for token in tokens_to_remove:
+                    exisiting_tokens.pop(token, None)
+
+                relation.data[self.unit]["tokens"] = json.dumps(data)
+            except ValidationError:
+                log.exception(f"Failed to validate data from relation {relation.id}")
+
     @property
     def token_requests(self) -> List[Request]:
         """List of token requests based on relations."""
         requests = []
-        for relation in self.relations or []:
+        for relation in self.relations:
             for unit in relation.units:
                 data = relation.data[unit].get("requests", "{}")
                 parsed_data = RequiresModel(requests=data)
@@ -60,9 +84,9 @@ class TokensProvider:
         return requests
 
     @property
-    def relations(self) -> Optional[List[Relation]]:
+    def relations(self) -> List[Relation]:
         """List of relations of this endpoint."""
-        return self.charm.model.relations.get(self.endpoint)
+        return self.charm.model.relations.get(self.endpoint) or []
 
     @property
     def unit(self) -> Unit:
