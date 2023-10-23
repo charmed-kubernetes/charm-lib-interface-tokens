@@ -43,7 +43,17 @@ class TokensRequirer(Object):
             if no_relation:
                 return f"Missing required {self.endpoint} relation"
             return f"Waiting for {self.endpoint} relation"
+        if self.in_flight_requests:
+            which_users = ",".join(sorted(self.in_flight_requests))
+            return f"Token request for users {which_users} is not yet fulfilled."
         return None
+
+    def in_flight_requests(self) -> Set[str]:
+        """Provides a set of requests which don't yet have a response."""
+        if not self.is_ready:
+            return set()
+        reqs = RequiresModel(requests=self.relation.data[self.unit].get("requests", "{}"))
+        return {user for user in reqs.requests.keys() if not self.get_token(user)}
 
     def get_token(self, user) -> Optional[str]:
         """Return the token for the given user."""
