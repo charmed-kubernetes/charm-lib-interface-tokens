@@ -23,3 +23,6 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/charmed-kubernetes/charm-lib-interface-tokens"
 "Bug Tracker" = "https://github.com/charmed-kubernetes/charm-lib-interface-tokens/issues"
+
+[tool.bandit]
+exclude_dirs = [".tox", ".venv", "venv"]
